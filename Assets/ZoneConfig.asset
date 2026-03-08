@@ -1,0 +1,50 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1398660728f5c44bf807aa0e9851f142, type: 3}
+  m_Name: ZoneConfig
+  m_EditorClassIdentifier: 
+  zones:
+  - zone: 0
+    displayName: Clarity
+    color: {r: 0.1, g: 0.29, b: 0.42, a: 1}
+    gaugeArcColor: {r: 0.1, g: 0.29, b: 0.42, a: 1}
+    forecasts:
+    - The hum resolves into something almost musical. You can feel the edges of something
+      vast.
+    - "Quiet. Not silence\u2009\u2014\u2009something deeper. Like hearing the ocean
+      through a wall."
+    - For a moment, the static clears and you can almost see through it.
+  - zone: 1
+    displayName: Manageable
+    color: {r: 0.16, g: 0.42, b: 0.29, a: 1}
+    gaugeArcColor: {r: 0.16, g: 0.42, b: 0.29, a: 1}
+    forecasts:
+    - The hum is background noise today. You can function. You can breathe.
+    - A decent day. The static is there but it's not in charge.
+    - The needle sits steady. Not good, not bad. Just a day.
+  - zone: 2
+    displayName: Elevated
+    color: {r: 0.55, g: 0.4, b: 0.13, a: 1}
+    gaugeArcColor: {r: 0.55, g: 0.4, b: 0.13, a: 1}
+    forecasts:
+    - The hum is persistent today. Everything costs a little more.
+    - Heavy. Like walking through water. The lights feel too bright.
+    - You can push through this. You always push through this. But it takes something.
+  - zone: 3
+    displayName: Crisis
+    color: {r: 0.55, g: 0.13, b: 0.13, a: 1}
+    gaugeArcColor: {r: 0.55, g: 0.13, b: 0.13, a: 1}
+    forecasts:
+    - The hum is deafening. Your hands are shaking. The walls are too close.
+    - "You can\u2019t think. You can\u2019t breathe. Everything is frequency and
+      pressure and noise."
+    - The world is static. You are static. There is nothing else.
