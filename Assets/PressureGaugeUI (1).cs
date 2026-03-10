@@ -13,6 +13,8 @@ namespace HalcyonAcademy
     ///   0   (Clarity) = bottom-left  (7 o'clock)
     ///   100 (Crisis)  = bottom-right (5 o'clock)
     ///   Arc sweeps clockwise over the top.
+    /// 
+    /// Zone thresholds: 0–25, 25–50, 50–75, 75–100
     /// </summary>
     public class PressureGaugeUI : MonoBehaviour
     {
@@ -51,8 +53,8 @@ namespace HalcyonAcademy
         [SerializeField] private float _glowTransitionSpeed = 3f;
 
         // ── Arc Geometry ───────────────────────────────────────────────
-        private const float ARC_START_ANGLE = 150f;   // bottom-left (clarity/0)
-        private const float ARC_END_ANGLE = -150f;    // bottom-right (crisis/100)
+        private const float ARC_START_ANGLE = 150f;
+        private const float ARC_END_ANGLE = -150f;
 
         // ── State ──────────────────────────────────────────────────────
         private float _targetAngle;
@@ -86,7 +88,6 @@ namespace HalcyonAcademy
             TrySubscribe();
 
             // Initialize all glow overlays to white with zero alpha
-            // so the sprite colors show through untinted
             if (_zoneGlowOverlays != null)
             {
                 for (int i = 0; i < _zoneGlowOverlays.Length; i++)
@@ -167,12 +168,12 @@ namespace HalcyonAcademy
             // Crisis gets aggressive pulsing
             if (_displayedZone == PressureZone.Crisis)
             {
-                float crisisIntensity = Mathf.InverseLerp(70f, 100f, _currentPressure);
+                float crisisIntensity = Mathf.InverseLerp(75f, 100f, _currentPressure);
                 float fastPulse = Mathf.Sin(Time.time * _glowPulseSpeed * 2f) * 0.5f + 0.5f;
                 pulseAlpha = Mathf.Lerp(pulseAlpha, _glowMaxAlpha * 1.2f, crisisIntensity * fastPulse);
             }
 
-            // Only the active zone glows — use WHITE tint so sprite colors show through
+            // Only the active zone glows — white tint preserves sprite colors
             for (int i = 0; i < 4; i++)
             {
                 _glowTargetAlpha[i] = ((int)_displayedZone == i) ? pulseAlpha : 0f;
@@ -185,7 +186,6 @@ namespace HalcyonAcademy
 
                 if (_zoneGlowOverlays[i] != null)
                 {
-                    // White tint preserves the sprite's baked-in colors
                     _zoneGlowOverlays[i].color = new Color(1f, 1f, 1f, _glowCurrentAlpha[i]);
                 }
             }
@@ -196,13 +196,13 @@ namespace HalcyonAcademy
             switch (_displayedZone)
             {
                 case PressureZone.Clarity:
-                    return Mathf.InverseLerp(20f, 0f, pressure);
+                    return Mathf.InverseLerp(25f, 0f, pressure);
                 case PressureZone.Manageable:
-                    return 0.3f + 0.7f * Mathf.InverseLerp(45f, 20f, pressure);
+                    return 0.3f + 0.7f * Mathf.InverseLerp(50f, 25f, pressure);
                 case PressureZone.Elevated:
-                    return Mathf.InverseLerp(45f, 70f, pressure);
+                    return Mathf.InverseLerp(50f, 75f, pressure);
                 case PressureZone.Crisis:
-                    return Mathf.InverseLerp(70f, 100f, pressure);
+                    return Mathf.InverseLerp(75f, 100f, pressure);
                 default:
                     return 0f;
             }
@@ -228,9 +228,9 @@ namespace HalcyonAcademy
                 _crackOverlay.color = new Color(c.r, c.g, c.b, crackAlpha);
             }
 
-            // Clarity glow below 20
+            // Clarity glow below 25
             if (_gaugeGlow != null)
-                _gaugeGlow.alpha = Mathf.InverseLerp(25f, 10f, pressure) * 0.4f;
+                _gaugeGlow.alpha = Mathf.InverseLerp(25f, 5f, pressure) * 0.4f;
 
             // Crisis shake
             _isShaking = pressure > 85f;

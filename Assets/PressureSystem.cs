@@ -15,12 +15,12 @@ namespace HalcyonAcademy
 
         // ── Events ─────────────────────────────────────────────────────
         [Header("Events")]
-        public UnityEvent<float> OnPressureChanged;      // current value
-        public UnityEvent<PressureZone> OnZoneChanged;    // zone transition
-        public UnityEvent OnPanicAttack;                  // threshold hit
+        public UnityEvent<float> OnPressureChanged;
+        public UnityEvent<PressureZone> OnZoneChanged;
+        public UnityEvent OnPanicAttack;
         public UnityEvent OnVapeurTaken;
         public UnityEvent OnVapeurWoreOff;
-        public UnityEvent<float> OnStormHarvest;          // spike amount
+        public UnityEvent<float> OnStormHarvest;
 
         // ── Pressure State ─────────────────────────────────────────────
         [Header("Pressure")]
@@ -115,7 +115,6 @@ namespace HalcyonAcademy
                 _noiseTimer = 0f;
                 float intensity = Mathf.Lerp(0.2f, 1.5f, _pressure / 100f);
                 _microNoise = UnityEngine.Random.Range(-intensity, intensity);
-                // Fire a lightweight update so the gauge can jitter
                 OnPressureChanged?.Invoke(_pressure + _microNoise);
             }
         }
@@ -124,10 +123,6 @@ namespace HalcyonAcademy
         //  PUBLIC API
         // ================================================================
 
-        /// <summary>
-        /// Adjust pressure by a delta. Applies microclimate modifiers if
-        /// Molly is co-located with a relationship partner.
-        /// </summary>
         public void AdjustPressure(float delta, string source = "")
         {
             float adjusted = delta;
@@ -137,9 +132,9 @@ namespace HalcyonAcademy
             {
                 float mc = GetMicroclimate(_currentLocationPartner);
                 if (adjusted > 0)
-                    adjusted *= (1f - mc * 0.3f);   // reduce increases
+                    adjusted *= (1f - mc * 0.3f);
                 else
-                    adjusted *= (1f + mc * 0.2f);   // amplify decreases
+                    adjusted *= (1f + mc * 0.2f);
             }
 
             // Vapeur debt tracking
@@ -149,12 +144,9 @@ namespace HalcyonAcademy
             Pressure += adjusted;
         }
 
-        /// <summary>
-        /// Take Vapeur. Immediately sets pressure to 25, starts debt accrual.
-        /// </summary>
         public void TakeVapeur()
         {
-            if (_vapeurActive) return; // can't double-dose
+            if (_vapeurActive) return;
 
             _vapeurDebt = Mathf.Max(0, _pressure - 25f);
             _vapeurActive = true;
@@ -163,10 +155,6 @@ namespace HalcyonAcademy
             OnVapeurTaken?.Invoke();
         }
 
-        /// <summary>
-        /// Called at end of day or next morning to resolve Vapeur.
-        /// Rebound = debt × 0.6, scaled by consecutive days.
-        /// </summary>
         public void ResolveVapeur()
         {
             if (!_vapeurActive) return;
@@ -181,20 +169,15 @@ namespace HalcyonAcademy
             OnVapeurWoreOff?.Invoke();
         }
 
-        /// <summary>
-        /// Begin a new day. Calculates morning baseline.
-        /// </summary>
         public void StartNewDay(float weatherModifier = 0f, float relationshipModifier = 0f)
         {
             _day++;
 
-            // Resolve any lingering Vapeur
             if (_vapeurActive)
                 ResolveVapeur();
             else
-                _consecutiveVapeurDays = 0; // reset streak if they didn't use yesterday
+                _consecutiveVapeurDays = 0;
 
-            // Vapeur rebound modifier for morning
             float vapeurMod = 0f;
             if (_consecutiveVapeurDays == 1) vapeurMod = 3f;
             else if (_consecutiveVapeurDays == 2) vapeurMod = 7f;
@@ -214,9 +197,6 @@ namespace HalcyonAcademy
             Pressure = morning;
         }
 
-        /// <summary>
-        /// Storm harvest event — sudden unavoidable spike.
-        /// </summary>
         public void TriggerStormHarvest()
         {
             float spike = UnityEngine.Random.Range(15f, 25f);
@@ -224,23 +204,14 @@ namespace HalcyonAcademy
             OnStormHarvest?.Invoke(spike);
         }
 
-        /// <summary>
-        /// Set which relationship partner Molly is currently near.
-        /// Pass null to clear.
-        /// </summary>
         public void SetLocationPartner(string partnerName)
         {
             _currentLocationPartner = partnerName;
         }
 
-        /// <summary>
-        /// Build microclimate through a "sheltering moment" —
-        /// choosing to spend time with someone on a hard day.
-        /// </summary>
         public void RecordShelteringMoment(string partner, float amount = 0.05f)
         {
-            // Bonus if pressure is high — bad days build stronger bonds
-            if (_pressure > 65f)
+            if (_pressure > 75f)
                 amount *= 1.3f;
 
             if (partner == "Lola")
@@ -249,31 +220,25 @@ namespace HalcyonAcademy
                 _alaricMicroclimate = Mathf.Clamp(_alaricMicroclimate + amount, -0.5f, 1f);
         }
 
-        /// <summary>
-        /// After conflict with Alaric, his microclimate goes negative.
-        /// </summary>
         public void RecordConflict(string partner, float amount = 0.1f)
         {
             if (partner == "Alaric")
                 _alaricMicroclimate = Mathf.Clamp(_alaricMicroclimate - amount, -0.5f, 1f);
         }
 
-        /// <summary>
-        /// Shift base pressure over the arc of the story.
-        /// </summary>
         public void ShiftBasePressure(float delta)
         {
             _basePressure = Mathf.Clamp(_basePressure + delta, 40f, 65f);
         }
 
         // ── "Bad Days Are More Valuable" ───────────────────────────────
-        public bool IsHighPressureDay => _pressure > 65f;
-        public bool IsLowPressureDay => _pressure < 30f;
+        public bool IsHighPressureDay => _pressure > 75f;
+        public bool IsLowPressureDay => _pressure < 25f;
 
         public float RootworkMultiplier => IsHighPressureDay ? 1.5f : (IsLowPressureDay ? 0.5f : 1f);
         public float AcademicMultiplier => IsLowPressureDay ? 1.3f : 1f;
         public float RelationshipMultiplier => IsHighPressureDay ? 1.3f : 1f;
-        public bool PerceptiveInsightsAvailable => _pressure > 65f;
+        public bool PerceptiveInsightsAvailable => _pressure > 75f;
 
         // ================================================================
         //  INTERNALS
@@ -295,14 +260,11 @@ namespace HalcyonAcademy
         }
     }
 
-    // ================================================================
-    //  ZONE ENUM
-    // ================================================================
     public enum PressureZone
     {
-        Clarity,    // 0–20   Deep teal
-        Manageable, // 20–45  Verdigris
-        Elevated,   // 45–70  Burnished gold
-        Crisis      // 70–100 Deep crimson
+        Clarity,    // 0–25   Deep teal
+        Manageable, // 25–50  Verdigris
+        Elevated,   // 50–75  Burnished gold
+        Crisis      // 75–100 Deep crimson
     }
 }
