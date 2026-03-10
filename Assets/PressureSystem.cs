@@ -288,9 +288,9 @@ namespace HalcyonAcademy
 
         public static PressureZone GetZone(float pressure)
         {
-            if (pressure < 20f) return PressureZone.Clarity;
-            if (pressure < 45f) return PressureZone.Manageable;
-            if (pressure < 70f) return PressureZone.Elevated;
+            if (pressure < 25f) return PressureZone.Clarity;
+            if (pressure < 50f) return PressureZone.Manageable;
+            if (pressure < 75f) return PressureZone.Elevated;
             return PressureZone.Crisis;
         }
     }

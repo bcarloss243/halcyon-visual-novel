@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Halcyon Academy — Pressure Gauge Prototype</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Cormorant+Garamond:wght@300;400;600&family=Spectral:wght@300;400&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0b0f;
+    color: #d4c5a0;
+    font-family: 'Cormorant Garamond', serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  /* Subtle noise texture overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: radial-gradient(ellipse at 30% 20%, rgba(45, 80, 75, 0.15) 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 80%, rgba(90, 50, 70, 0.1) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .gauge-container {
+    position: relative;
+    width: 320px;
+    height: 320px;
+    z-index: 1;
+  }
+
+  /* The main gauge SVG */
+  .gauge-svg {
+    width: 100%;
+    height: 100%;
+    filter: drop-shadow(0 0 30px rgba(180, 160, 120, 0.08));
+  }
+
+  /* Zone labels */
+  .zone-label {
+    font-family: 'Spectral', serif;
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    fill-opacity: 0.7;
+  }
+
+  /* Center cap */
+  .center-cap {
+    filter: drop-shadow(0 1px 4px rgba(0,0,0,0.4));
+  }
+
+  /* Status display */
+  .status-area {
+    text-align: center;
+    margin-top: 24px;
+    z-index: 1;
+  }
+
+  .pressure-value {
+    font-family: 'Playfair Display', serif;
+    font-size: 14px;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    color: #8a7d65;
+    margin-bottom: 4px;
+    transition: color 0.8s ease;
+  }
+
+  .forecast-text {
+    font-family: 'Spectral', serif;
+    font-size: 13px;
+    font-weight: 300;
+    color: #6a6050;
+    font-style: italic;
+    min-height: 20px;
+    transition: color 0.8s ease;
+    max-width: 280px;
+  }
+
+  /* Morning routine buttons */
+  .morning-routine {
+    margin-top: 40px;
+    z-index: 1;
+    text-align: center;
+  }
+
+  .routine-label {
+    font-family: 'Playfair Display', serif;
+    font-size: 11px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: #4a4535;
+    margin-bottom: 16px;
+  }
+
+  .routine-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    max-width: 400px;
+  }
+
+  .routine-btn {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 13px;
+    padding: 8px 16px;
+    background: transparent;
+    border: 1px solid rgba(180, 160, 120, 0.2);
+    color: #8a7d65;
+    cursor: pointer;
+    transition: all 0.4s ease;
+    letter-spacing: 1px;
+  }
+
+  .routine-btn:hover {
+    border-color: rgba(180, 160, 120, 0.5);
+    color: #d4c5a0;
+    background: rgba(180, 160, 120, 0.05);
+  }
+
+  .routine-btn.negative:hover {
+    border-color: rgba(180, 100, 100, 0.4);
+    color: #c4a0a0;
+  }
+
+  .routine-btn.positive:hover {
+    border-color: rgba(100, 160, 140, 0.4);
+    color: #a0c4b8;
+  }
+
+  .routine-btn.vapeur:hover {
+    border-color: rgba(140, 120, 180, 0.4);
+    color: #b8a0c4;
+  }
+
+  /* Day activities */
+  .activities {
+    margin-top: 24px;
+    z-index: 1;
+    text-align: center;
+  }
+
+  .activities-label {
+    font-family: 'Playfair Display', serif;
+    font-size: 11px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: #4a4535;
+    margin-bottom: 16px;
+  }
+
+  .activity-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    max-width: 500px;
+  }
+
+
+
+  .day-number {
+    font-family: 'Playfair Display', serif;
+    font-size: 12px;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    color: #4a4535;
+  }
+
+  .time-block {
+    font-family: 'Spectral', serif;
+    font-size: 11px;
+    color: #3a3530;
+    margin-top: 4px;
+    letter-spacing: 2px;
+  }
+
+  /* Hum audio indicator */
+  .hum-indicator {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Spectral', serif;
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #2a2520;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .hum-bars {
+    display: flex;
+    gap: 2px;
+    align-items: flex-end;
+    height: 12px;
+  }
+
+  .hum-bar {
+    width: 2px;
+    background: #3a3530;
+    transition: height 0.8s ease, background 0.8s ease;
+  }
+
+  /* Flicker effect for storm harvesting */
+  @keyframes flicker {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+
+  .flickering .gauge-svg {
+    animation: flicker 0.15s ease-in-out 3;
+  }
+
+  /* Gauge crack effect for extreme values */
+  .crack-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+  }
+
+  .gauge-container.cracking .crack-overlay {
+    opacity: 1;
+  }
+</style>
+</head>
+<body>
+
+<div class="day-info">
+  <div class="day-number" id="dayNumber">Day 1 — Academy</div>
+  <div class="time-block" id="timeBlock">Morning</div>
+</div>
+
+<div class="gauge-container" id="gaugeContainer">
+  <svg class="gauge-svg" viewBox="0 0 320 320">
+    <defs>
+      <!-- Brass gradient for the bezel -->
+      <linearGradient id="brassGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" style="stop-color:#c4a84e"/>
+        <stop offset="25%" style="stop-color:#d4b85e"/>
+        <stop offset="50%" style="stop-color:#b89840"/>
+        <stop offset="75%" style="stop-color:#d4b85e"/>
+        <stop offset="100%" style="stop-color:#a08830"/>
+      </linearGradient>
+
+      <!-- Dark brass for inner ring -->
+      <linearGradient id="brassDarkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" style="stop-color:#8a7830"/>
+        <stop offset="50%" style="stop-color:#6a5820"/>
+        <stop offset="100%" style="stop-color:#8a7830"/>
+      </linearGradient>
+
+      <!-- Face gradient -->
+      <radialGradient id="faceGrad" cx="50%" cy="45%" r="50%">
+        <stop offset="0%" style="stop-color:#1a1815"/>
+        <stop offset="100%" style="stop-color:#0e0d0b"/>
+      </radialGradient>
+
+      <!-- Zone colors -->
+      <linearGradient id="redZone" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" style="stop-color:#8b2020"/>
+        <stop offset="100%" style="stop-color:#a03030"/>
+      </linearGradient>
+      <linearGradient id="amberZone" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" style="stop-color:#8b6520"/>
+        <stop offset="100%" style="stop-color:#a07830"/>
+      </linearGradient>
+      <linearGradient id="greenZone" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" style="stop-color:#2a6b4a"/>
+        <stop offset="100%" style="stop-color:#357a55"/>
+      </linearGradient>
+      <linearGradient id="blueZone" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" style="stop-color:#1a4a6b"/>
+        <stop offset="100%" style="stop-color:#255a7a"/>
+      </linearGradient>
+
+      <!-- Needle gradient -->
+      <linearGradient id="needleGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" style="stop-color:#e8d8b0"/>
+        <stop offset="100%" style="stop-color:#c4a860"/>
+      </linearGradient>
+    </defs>
+
+    <!-- Outer bezel -->
+    <circle cx="160" cy="160" r="155" fill="none" stroke="url(#brassGrad)" stroke-width="4"/>
+    <circle cx="160" cy="160" r="151" fill="none" stroke="url(#brassDarkGrad)" stroke-width="1.5"/>
+
+    <!-- Art Deco corner ornaments on bezel -->
+    <g opacity="0.4" stroke="url(#brassGrad)" stroke-width="0.8" fill="none">
+      <!-- Top ornament -->
+      <path d="M 145 8 L 160 2 L 175 8" />
+      <path d="M 150 12 L 160 7 L 170 12" />
+      <!-- Bottom ornament -->
+      <path d="M 145 312 L 160 318 L 175 312" />
+      <path d="M 150 308 L 160 313 L 170 308" />
+    </g>
+
+    <!-- Gauge face -->
+    <circle cx="160" cy="160" r="145" fill="url(#faceGrad)"/>
+
+    <!-- Inner decorative ring -->
+    <circle cx="160" cy="160" r="140" fill="none" stroke="#2a2518" stroke-width="0.5"/>
+    <circle cx="160" cy="160" r="125" fill="none" stroke="#2a2518" stroke-width="0.3"/>
+
+    <!-- Zone arcs (spanning 240 degrees, from -210 to 30) -->
+    <!-- Red zone: -210 to -150 (crisis) -->
+    <path d="M 43.5 220 A 120 120 0 0 1 40 160" 
+          fill="none" stroke="url(#redZone)" stroke-width="12" stroke-linecap="butt" opacity="0.6"/>
+
+    <!-- Amber zone: -150 to -90 (elevated) -->
+    <path d="M 40 160 A 120 120 0 0 1 100 56"
+          fill="none" stroke="url(#amberZone)" stroke-width="12" stroke-linecap="butt" opacity="0.5"/>
+
+    <!-- Green zone: -90 to -30 (manageable) -->
+    <path d="M 100 56 A 120 120 0 0 1 220 56"
+          fill="none" stroke="url(#greenZone)" stroke-width="12" stroke-linecap="butt" opacity="0.5"/>
+
+    <!-- Blue zone: -30 to 30 (clarity) -->
+    <path d="M 220 56 A 120 120 0 0 1 276.5 220"
+          fill="none" stroke="url(#blueZone)" stroke-width="12" stroke-linecap="butt" opacity="0.5"/>
+
+    <!-- Tick marks -->
+    <g stroke="#3a3228" stroke-width="1" opacity="0.6" id="tickMarks">
+    </g>
+
+    <!-- Zone labels -->
+    <text x="48" y="185" class="zone-label" fill="#8b3030" transform="rotate(-20, 48, 185)">Crisis</text>
+    <text x="62" y="110" class="zone-label" fill="#a08030" transform="rotate(25, 62, 110)">Elevated</text>
+    <text x="155" y="48" class="zone-label" fill="#3a7a55" text-anchor="middle">Manageable</text>
+    <text x="248" y="110" class="zone-label" fill="#2a5a7a" transform="rotate(-25, 248, 110)">Clarity</text>
+
+    <!-- Art Deco decorative elements -->
+    <g opacity="0.15" stroke="#c4a84e" fill="none" stroke-width="0.5">
+      <!-- Radiating lines from center -->
+      <line x1="160" y1="35" x2="160" y2="50"/>
+      <line x1="160" y1="270" x2="160" y2="285"/>
+      <line x1="35" y1="160" x2="50" y2="160"/>
+      <line x1="270" y1="160" x2="285" y2="160"/>
+      <!-- Diamond accents -->
+      <path d="M 160 28 L 164 35 L 160 42 L 156 35 Z"/>
+      <path d="M 160 278 L 164 285 L 160 292 L 156 285 Z"/>
+    </g>
+
+    <!-- HALCYON text at bottom of gauge face -->
+    <text x="160" y="260" text-anchor="middle" 
+          font-family="'Playfair Display', serif" font-size="8" 
+          letter-spacing="6" fill="#3a3228" opacity="0.5">HALCYON</text>
+
+    <!-- Needle group -->
+    <g class="needle" id="needle">
+      <!-- Needle shadow -->
+      <polygon points="160,50 156,162 164,162" fill="rgba(0,0,0,0.3)" transform="translate(1,1)"/>
+      <!-- Needle body -->
+      <polygon points="160,50 157,155 163,155" fill="url(#needleGrad)"/>
+      <!-- Needle tip highlight -->
+      <polygon points="160,50 158.5,80 161.5,80" fill="#f0e0c0" opacity="0.5"/>
+    </g>
+
+    <!-- Center cap -->
+    <g class="center-cap">
+      <circle cx="160" cy="160" r="12" fill="#8a7830"/>
+      <circle cx="160" cy="160" r="10" fill="url(#brassDarkGrad)"/>
+      <circle cx="160" cy="160" r="8" fill="#6a5820"/>
+      <circle cx="160" cy="160" r="3" fill="#4a3810"/>
+      <!-- Cap highlight -->
+      <circle cx="157" cy="157" r="5" fill="rgba(212,184,94,0.15)"/>
+    </g>
+
+    <!-- Glass reflection overlay -->
+    <ellipse cx="130" cy="120" rx="60" ry="40" fill="rgba(255,255,255,0.02)" transform="rotate(-15, 130, 120)"/>
+
+  </svg>
+
+  <!-- Crack overlay for extreme pressure -->
+  <svg class="crack-overlay" viewBox="0 0 320 320">
+    <g stroke="rgba(180,160,120,0.3)" stroke-width="0.5" fill="none">
+      <path d="M 80 80 L 95 105 L 88 130"/>
+      <path d="M 95 105 L 115 108"/>
+      <path d="M 230 90 L 218 115 L 225 135"/>
+      <path d="M 218 115 L 200 120"/>
+    </g>
+  </svg>
+</div>
+
+<div class="status-area">
+  <div class="pressure-value" id="pressureLabel">Elevated</div>
+  <div class="forecast-text" id="forecastText">The hum is persistent today. Everything costs a little more.</div>
+</div>
+
+<div class="morning-routine">
+  <div class="routine-label">Morning Routine</div>
+  <div class="routine-actions">
+    <button class="routine-btn positive" onclick="adjustPressure(-8, 'You sit with the hum for a moment. It doesn\'t quiet, but you stop fighting it.')">Sit with the hum</button>
+    <button class="routine-btn positive" onclick="adjustPressure(-5, 'The canal catches the light. For a moment, the world feels still.')">Look at the canal</button>
+    <button class="routine-btn positive" onclick="adjustPressure(-6, 'A message from Lola. Something about a new seedling. You almost smile.')">Read Lola's message</button>
+    <button class="routine-btn vapeur" onclick="takeVapeur()">Take Vapeur</button>
+    <button class="routine-btn negative" onclick="adjustPressure(5, 'You skip the routine. The day starts already behind.')">Skip</button>
+  </div>
+</div>
+
+<div class="activities">
+  <div class="activities-label">Afternoon Activities</div>
+  <div class="activity-actions">
+    <button class="routine-btn negative" onclick="adjustPressure(12, 'The Forge hums at a frequency that makes your teeth ache. The lecture is a blur.')">Attend Ironwork class</button>
+    <button class="routine-btn positive" onclick="adjustPressure(-15, 'The greenhouse air wraps around you like a warm hand. Lola is here.')">Visit the greenhouse</button>
+    <button class="routine-btn" onclick="adjustPressure(-3, 'The Archives are quiet. Dust motes drift through lamplight. You can almost think.')">Study in the Archives</button>
+    <button class="routine-btn negative" onclick="adjustPressure(8, 'Alaric asks about your dosage. His concern feels like a wall.')">Dinner with Alaric</button>
+    <button class="routine-btn positive" onclick="adjustPressure(-10, 'Rest. Just rest. The hum is still there but your body unclenches, one muscle at a time.')">Rest</button>
+    <button class="routine-btn" onclick="triggerStormHarvest()">⚡ Storm harvest event</button>
+  </div>
+</div>
+
+<div class="hum-indicator">
+  <span>The hum</span>
+  <div class="hum-bars" id="humBars">
+    <div class="hum-bar" style="height: 3px"></div>
+    <div class="hum-bar" style="height: 5px"></div>
+    <div class="hum-bar" style="height: 7px"></div>
+    <div class="hum-bar" style="height: 4px"></div>
+    <div class="hum-bar" style="height: 6px"></div>
+    <div class="hum-bar" style="height: 3px"></div>
+    <div class="hum-bar" style="height: 8px"></div>
+    <div class="hum-bar" style="height: 5px"></div>
+  </div>
+</div>
+
+<script>
+  // Pressure state
+  let pressure = 62; // 0 (clarity) to 100 (crisis)
+  let vapeurActive = false;
+  let vapeurDebt = 0;
+  let day = 1;
+
+  // Zone definitions
+  const zones = [
+    { name: 'Clarity', min: 0, max: 20, color: '#2a5a7a', forecast: [
+      'The hum resolves into something almost musical. You can feel the edges of something vast.',
+      'Quiet. Not silence — something deeper. Like hearing the ocean through a wall.',
+      'For a moment, the static clears and you can almost see through it.'
+    ]},
+    { name: 'Manageable', min: 20, max: 45, color: '#3a7a55', forecast: [
+      'The hum is background noise today. You can function. You can breathe.',
+      'A decent day. The static is there but it\'s not in charge.',
+      'The needle sits steady. Not good, not bad. Just a day.'
+    ]},
+    { name: 'Elevated', min: 45, max: 70, color: '#a08030', forecast: [
+      'The hum is persistent today. Everything costs a little more.',
+      'Heavy. Like walking through water. The lights feel too bright.',
+      'You can push through this. You always push through this. But it takes something.'
+    ]},
+    { name: 'Crisis', min: 70, max: 100, color: '#8b3030', forecast: [
+      'The hum is deafening. Your hands are shaking. The walls are too close.',
+      'You can\'t think. You can\'t breathe. Everything is frequency and pressure and noise.',
+      'The world is static. You are static. There is nothing else.'
+    ]}
+  ];
+
+  function getZone(p) {
+    return zones.find(z => p >= z.min && p < z.max) || zones[zones.length - 1];
+  }
+
+  function updateGauge() {
+    pressure = Math.max(0, Math.min(100, pressure));
+
+    // Map pressure (0-100) to angle
+    // 0 pressure = clarity (right side, ~30deg from top)
+    // 100 pressure = crisis (left side, ~-210deg from top)
+    // Gauge sweeps 240 degrees from -210 to 30
+    const startAngle = 30; // Blue/clarity side (low pressure)
+    const endAngle = -210; // Red/crisis side (high pressure)
+    const angle = startAngle + (pressure / 100) * (endAngle - startAngle);
+
+    const needle = document.getElementById('needle');
+    needle.style.transform = `rotate(${angle}deg)`;
+
+    // Update zone display
+    const zone = getZone(pressure);
+    const label = document.getElementById('pressureLabel');
+    label.textContent = vapeurActive ? 'Vapeur Active' : zone.name;
+    label.style.color = vapeurActive ? '#8a70b0' : zone.color;
+
+    // Update forecast
+    const forecast = document.getElementById('forecastText');
+    if (!forecast.dataset.custom) {
+      const texts = zone.forecast;
+      forecast.textContent = texts[Math.floor(Math.random() * texts.length)];
+      forecast.style.color = zone.color;
+    }
+
+    // Update hum bars
+    const bars = document.querySelectorAll('.hum-bar');
+    bars.forEach((bar, i) => {
+      const intensity = (pressure / 100);
+      const height = 2 + (intensity * 10) + Math.random() * (intensity * 5);
+      bar.style.height = height + 'px';
+      bar.style.background = zone.color;
+    });
+
+    // Crack effect for extreme pressure
+    const container = document.getElementById('gaugeContainer');
+    if (pressure > 90) {
+      container.classList.add('cracking');
+    } else {
+      container.classList.remove('cracking');
+    }
+
+    // Animate hum bars continuously
+    if (!window.humInterval) {
+      window.humInterval = setInterval(() => {
+        const currentZone = getZone(pressure);
+        const bars = document.querySelectorAll('.hum-bar');
+        const intensity = pressure / 100;
+        bars.forEach(bar => {
+          const height = 2 + (intensity * 10) + Math.random() * (intensity * 5);
+          bar.style.height = height + 'px';
+        });
+      }, 300);
+    }
+  }
+
+  function adjustPressure(amount, text) {
+    pressure += amount;
+    const forecast = document.getElementById('forecastText');
+    forecast.textContent = text;
+    forecast.dataset.custom = 'true';
+    setTimeout(() => { delete forecast.dataset.custom; }, 3000);
+    updateGauge();
+  }
+
+  function takeVapeur() {
+    vapeurDebt += (pressure - 25);
+    pressure = 25;
+    vapeurActive = true;
+    const forecast = document.getElementById('forecastText');
+    forecast.textContent = 'The Vapeur hits. The hum fades. Everything smooths out. You can function. You can breathe. (But the needle can\'t reach blue.)';
+    forecast.dataset.custom = 'true';
+    forecast.style.color = '#8a70b0';
+    setTimeout(() => {
+      vapeurActive = false;
+      pressure += vapeurDebt * 0.6;
+      vapeurDebt = 0;
+      delete forecast.dataset.custom;
+      updateGauge();
+    }, 8000);
+    updateGauge();
+  }
+
+  function triggerStormHarvest() {
+    const container = document.getElementById('gaugeContainer');
+    container.classList.add('flickering');
+    setTimeout(() => container.classList.remove('flickering'), 500);
+
+    pressure += 18;
+    const forecast = document.getElementById('forecastText');
+    forecast.textContent = 'The lights pulse bright for a heartbeat. Something feeds. The hum spikes — a frequency that splits your skull. Nobody else notices.';
+    forecast.dataset.custom = 'true';
+    forecast.style.color = '#a08030';
+    setTimeout(() => { delete forecast.dataset.custom; }, 4000);
+    updateGauge();
+  }
+
+  // Generate tick marks
+  function generateTicks() {
+    const tickGroup = document.getElementById('tickMarks');
+    const cx = 160, cy = 160, r = 132;
+    for (let i = 0; i <= 24; i++) {
+      const angle = (-210 + (i / 24) * 240) * Math.PI / 180;
+      const cos = Math.cos(angle), sin = Math.sin(angle);
+      const isMajor = i % 6 === 0;
+      const innerR = isMajor ? r - 10 : r - 5;
+      const x1 = cx + innerR * cos;
+      const y1 = cy + innerR * sin;
+      const x2 = cx + r * cos;
+      const y2 = cy + r * sin;
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', x1);
+      line.setAttribute('y1', y1);
+      line.setAttribute('x2', x2);
+      line.setAttribute('y2', y2);
+      if (isMajor) line.setAttribute('stroke-width', '1.5');
+      tickGroup.appendChild(line);
+    }
+  }
+
+  // Initialize
+  generateTicks();
+
+  // Random starting pressure (simulating the morning baseline)
+  pressure = 45 + Math.floor(Math.random() * 30);
+  updateGauge();
+</script>
+
+</body>
+</html>

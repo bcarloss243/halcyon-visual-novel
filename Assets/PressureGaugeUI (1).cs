@@ -9,8 +9,10 @@ namespace HalcyonAcademy
     /// Renders the Art Deco pressure gauge as a Unity UI element.
     /// Subscribes to PressureSystem events and animates the needle.
     /// 
-    /// Setup: Place on a RectTransform (200×200). Child objects referenced
-    /// below are created by the GaugePrefabBuilder editor script.
+    /// Arc orientation (matching gauge art):
+    ///   0   (Clarity) = bottom-left  (7 o'clock)
+    ///   100 (Crisis)  = bottom-right (5 o'clock)
+    ///   Arc sweeps clockwise over the top.
     /// </summary>
     public class PressureGaugeUI : MonoBehaviour
     {
@@ -21,12 +23,12 @@ namespace HalcyonAcademy
         [SerializeField] private Image _glassOverlay;
         [SerializeField] private Image _crackOverlay;
         [SerializeField] private Image _vapeurTintOverlay;
-        [SerializeField] private Image[] _zoneArcs;          // 4 arcs: crisis, elevated, manageable, clarity
+        [SerializeField] private Image[] _zoneArcs;
 
         [Header("Text")]
         [SerializeField] private TextMeshProUGUI _zoneLabel;
         [SerializeField] private TextMeshProUGUI _forecastText;
-        [SerializeField] private TextMeshProUGUI _halcyonText; // etched at bottom
+        [SerializeField] private TextMeshProUGUI _halcyonText;
 
         [Header("Config")]
         [SerializeField] private ZoneConfig _zoneConfig;
@@ -36,30 +38,41 @@ namespace HalcyonAcademy
         [SerializeField] private AnimationCurve _needleCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
 
         [Header("Effects")]
-        [SerializeField] private CanvasGroup _gaugeGlow;      // teal glow for clarity zone
+        [SerializeField] private CanvasGroup _gaugeGlow;
         [SerializeField] private float _crisisShakeIntensity = 2f;
 
+        // ── Zone Glow System ───────────────────────────────────────────
+        [Header("Zone Glow")]
+        [Tooltip("Image overlays for each zone's glow. Order: Clarity, Manageable, Elevated, Crisis. Sprites should have colors baked in.")]
+        [SerializeField] private Image[] _zoneGlowOverlays;
+        [SerializeField] private float _glowPulseSpeed = 1.5f;
+        [SerializeField] private float _glowMinAlpha = 0.1f;
+        [SerializeField] private float _glowMaxAlpha = 0.8f;
+        [SerializeField] private float _glowTransitionSpeed = 3f;
+
         // ── Arc Geometry ───────────────────────────────────────────────
-        // Gauge spans 240° — from 210° (crisis/left) to -30° (clarity/right)
-        // Unity UI rotation: 0° = up, positive = clockwise
-        private const float ARC_START_ANGLE = 150f;  // crisis side (7 o'clock)
-        private const float ARC_END_ANGLE = -150f;   // clarity side (5 o'clock)
-        private const float ARC_SPAN = 300f;         // total sweep
+        private const float ARC_START_ANGLE = 150f;   // bottom-left (clarity/0)
+        private const float ARC_END_ANGLE = -150f;    // bottom-right (crisis/100)
 
         // ── State ──────────────────────────────────────────────────────
         private float _targetAngle;
         private float _currentAngle;
         private float _angleVelocity;
         private PressureZone _displayedZone;
+        private PressureZone _previousZone;
         private Coroutine _forecastRoutine;
         private Vector2 _originalNeedlePos;
         private bool _isShaking;
+        private bool _subscribed = false;
+
+        // Glow state
+        private float[] _glowTargetAlpha = new float[4];
+        private float[] _glowCurrentAlpha = new float[4];
+        private float _currentPressure;
 
         // ================================================================
         //  LIFECYCLE
         // ================================================================
-
-        private bool _subscribed = false;
 
         void OnEnable()
         {
@@ -70,8 +83,18 @@ namespace HalcyonAcademy
 
         void Start()
         {
-            // Retry subscription in Start in case PressureSystem wasn't ready in OnEnable
             TrySubscribe();
+
+            // Initialize all glow overlays to white with zero alpha
+            // so the sprite colors show through untinted
+            if (_zoneGlowOverlays != null)
+            {
+                for (int i = 0; i < _zoneGlowOverlays.Length; i++)
+                {
+                    if (_zoneGlowOverlays[i] != null)
+                        _zoneGlowOverlays[i].color = new Color(1f, 1f, 1f, 0f);
+                }
+            }
         }
 
         private void TrySubscribe()
@@ -102,7 +125,6 @@ namespace HalcyonAcademy
 
         void Update()
         {
-            // Retry subscription if PressureSystem wasn't ready earlier
             if (!_subscribed) TrySubscribe();
 
             // Smooth needle animation
@@ -120,6 +142,70 @@ namespace HalcyonAcademy
                 float shake = Random.Range(-_crisisShakeIntensity, _crisisShakeIntensity);
                 _needlePivot.anchoredPosition = _originalNeedlePos + new Vector2(shake * 0.3f, shake * 0.3f);
             }
+
+            // Zone Glow
+            UpdateZoneGlow();
+        }
+
+        // ================================================================
+        //  ZONE GLOW SYSTEM
+        // ================================================================
+
+        private void UpdateZoneGlow()
+        {
+            if (_zoneGlowOverlays == null || _zoneGlowOverlays.Length < 4) return;
+
+            float zoneDepth = GetZoneDepth(_currentPressure);
+
+            // Breathing pulse
+            float pulse = Mathf.Sin(Time.time * _glowPulseSpeed) * 0.5f + 0.5f;
+
+            // Intensity scales with depth into the zone
+            float pulseAlpha = Mathf.Lerp(_glowMinAlpha, _glowMaxAlpha, zoneDepth);
+            pulseAlpha *= Mathf.Lerp(0.7f, 1.0f, pulse);
+
+            // Crisis gets aggressive pulsing
+            if (_displayedZone == PressureZone.Crisis)
+            {
+                float crisisIntensity = Mathf.InverseLerp(70f, 100f, _currentPressure);
+                float fastPulse = Mathf.Sin(Time.time * _glowPulseSpeed * 2f) * 0.5f + 0.5f;
+                pulseAlpha = Mathf.Lerp(pulseAlpha, _glowMaxAlpha * 1.2f, crisisIntensity * fastPulse);
+            }
+
+            // Only the active zone glows — use WHITE tint so sprite colors show through
+            for (int i = 0; i < 4; i++)
+            {
+                _glowTargetAlpha[i] = ((int)_displayedZone == i) ? pulseAlpha : 0f;
+
+                _glowCurrentAlpha[i] = Mathf.MoveTowards(
+                    _glowCurrentAlpha[i],
+                    _glowTargetAlpha[i],
+                    Time.deltaTime * _glowTransitionSpeed
+                );
+
+                if (_zoneGlowOverlays[i] != null)
+                {
+                    // White tint preserves the sprite's baked-in colors
+                    _zoneGlowOverlays[i].color = new Color(1f, 1f, 1f, _glowCurrentAlpha[i]);
+                }
+            }
+        }
+
+        private float GetZoneDepth(float pressure)
+        {
+            switch (_displayedZone)
+            {
+                case PressureZone.Clarity:
+                    return Mathf.InverseLerp(20f, 0f, pressure);
+                case PressureZone.Manageable:
+                    return 0.3f + 0.7f * Mathf.InverseLerp(45f, 20f, pressure);
+                case PressureZone.Elevated:
+                    return Mathf.InverseLerp(45f, 70f, pressure);
+                case PressureZone.Crisis:
+                    return Mathf.InverseLerp(70f, 100f, pressure);
+                default:
+                    return 0f;
+            }
         }
 
         // ================================================================
@@ -128,11 +214,11 @@ namespace HalcyonAcademy
 
         private void OnPressureChanged(float pressure)
         {
-            // Map pressure 0–100 to needle angle
-            // 0 (clarity) = far right = ARC_END_ANGLE
-            // 100 (crisis) = far left = ARC_START_ANGLE
+            _currentPressure = pressure;
+
+            // Needle: 0 → bottom-left (150°), 100 → bottom-right (-150°)
             float t = pressure / 100f;
-            _targetAngle = Mathf.Lerp(ARC_END_ANGLE, ARC_START_ANGLE, t);
+            _targetAngle = Mathf.Lerp(ARC_START_ANGLE, ARC_END_ANGLE, t);
 
             // Crack overlay above 90
             if (_crackOverlay != null)
@@ -144,9 +230,7 @@ namespace HalcyonAcademy
 
             // Clarity glow below 20
             if (_gaugeGlow != null)
-            {
                 _gaugeGlow.alpha = Mathf.InverseLerp(25f, 10f, pressure) * 0.4f;
-            }
 
             // Crisis shake
             _isShaking = pressure > 85f;
@@ -156,29 +240,27 @@ namespace HalcyonAcademy
 
         private void OnZoneChanged(PressureZone zone)
         {
+            _previousZone = _displayedZone;
             _displayedZone = zone;
 
             if (_zoneConfig == null) return;
             var data = _zoneConfig.GetZoneData(zone);
 
-            // Update zone label
             if (_zoneLabel != null)
             {
                 _zoneLabel.text = PressureSystem.Instance.VapeurActive
                     ? "VAPEUR ACTIVE"
                     : data.displayName.ToUpper();
                 _zoneLabel.color = PressureSystem.Instance.VapeurActive
-                    ? new Color(0.54f, 0.44f, 0.69f) // purple
+                    ? new Color(0.54f, 0.44f, 0.69f)
                     : data.color;
             }
 
-            // Update forecast text
             UpdateForecast(data);
         }
 
         private void OnVapeurTaken()
         {
-            // Purple tint overlay
             if (_vapeurTintOverlay != null)
                 StartCoroutine(FadeTint(_vapeurTintOverlay, 0.15f, 0.6f));
 
@@ -216,7 +298,7 @@ namespace HalcyonAcademy
         {
             if (_forecastText != null)
             {
-                _forecastText.text = "Everything narrows. You can't\u2009\u2014";
+                _forecastText.text = "Everything narrows. You can\u2019t\u2009\u2014";
                 _forecastText.color = new Color(0.55f, 0.13f, 0.13f);
             }
         }
@@ -283,10 +365,6 @@ namespace HalcyonAcademy
         //  PUBLIC: for narrative triggers
         // ================================================================
 
-        /// <summary>
-        /// Show a custom narrative forecast line (e.g., after choosing an activity).
-        /// Reverts to zone-based forecast after duration seconds.
-        /// </summary>
         public void ShowNarrativeForecast(string text, Color? color = null, float duration = 4f)
         {
             if (_forecastRoutine != null) StopCoroutine(_forecastRoutine);
@@ -297,7 +375,6 @@ namespace HalcyonAcademy
 
         private IEnumerator NarrativeForecastSequence(string text, float duration)
         {
-            // Type out the narrative text
             _forecastText.text = "";
             foreach (char c in text)
             {
@@ -307,7 +384,6 @@ namespace HalcyonAcademy
 
             yield return new WaitForSeconds(duration);
 
-            // Revert to zone forecast
             if (_zoneConfig != null)
                 UpdateForecast(_zoneConfig.GetZoneData(_displayedZone));
         }
