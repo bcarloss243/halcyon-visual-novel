@@ -11,10 +11,10 @@ namespace HalcyonAcademy
     /// UI component for a single activity choice button.
     /// Prefab structure:
     ///   ActivityButton (Button + Image + CanvasGroup)
-    ///   ├── Icon (Image)
-    ///   ├── NameLabel (TMP)
+    ///   ├── Icon (Image)            — optional activity icon
+    ///   ├── NameLabel (TMP)         — activity name
     ///   ├── PressureForecast (TMP)  — e.g., "+8 to +12"
-    ///   ├── FlavorText (TMP)        — short description
+    ///   ├── FlavorText (TMP)        — narrative snippet
     ///   ├── HighPressureBonus (GameObject, enabled when applicable)
     ///   │   └── BonusLabel (TMP)    — "✧ Insight bonus"
     ///   ├── BorderGlow (Image)      — Art Deco border, fades on hover
@@ -65,16 +65,17 @@ namespace HalcyonAcademy
 
         /// <summary>
         /// Called by DailyScheduleUI when spawning this button.
+        /// Uses actual ActivityDef field names.
         /// </summary>
         public void Initialize(ActivityDef def, Action<ActivityDef> onChosen)
         {
             _activityDef = def;
             _onChosen = onChosen;
 
-            // Content
-            if (nameLabel != null) nameLabel.text = def.displayName;
+            // Content — using actual ActivityDef fields
+            if (nameLabel != null) nameLabel.text = def.activityName;
             if (pressureForecastLabel != null) pressureForecastLabel.text = def.GetPressureForecastText();
-            if (flavorLabel != null) flavorLabel.text = def.narrativeSnippet;
+            if (flavorLabel != null) flavorLabel.text = def.GetNarrative();
             if (iconImage != null && def.icon != null) iconImage.sprite = def.icon;
 
             // Pressure color bar
@@ -96,15 +97,11 @@ namespace HalcyonAcademy
             _button.onClick.AddListener(() => _onChosen?.Invoke(_activityDef));
         }
 
-        /// <summary>
-        /// Shows the "Insight bonus" badge when the player's pressure is high enough
-        /// and this activity benefits from it.
-        /// </summary>
         private void UpdateHighPressureBonus()
         {
             if (highPressureBonusObj == null) return;
 
-            float pressure = PressureSystem.Instance.CurrentPressure;
+            float pressure = PressureSystem.Instance.Pressure;
             bool showBonus = pressure > 60f && _activityDef.BenefitsFromHighPressure();
             highPressureBonusObj.SetActive(showBonus);
 
@@ -117,9 +114,6 @@ namespace HalcyonAcademy
 
         // ── Animate In ─────────────────────────────────────────────────
 
-        /// <summary>
-        /// Staggered entrance animation. Called by DailyScheduleUI.
-        /// </summary>
         public void AnimateIn(float delay)
         {
             StartCoroutine(DoAnimateIn(delay));
@@ -137,7 +131,6 @@ namespace HalcyonAcademy
             {
                 elapsed += Time.deltaTime;
                 float t = elapsed / animateInDuration;
-                // Ease-out cubic
                 float ease = 1f - Mathf.Pow(1f - t, 3f);
                 _canvasGroup.alpha = ease;
                 _rect.localScale = Vector3.Lerp(_baseScale * 0.92f, _baseScale, ease);

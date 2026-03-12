@@ -192,6 +192,11 @@ namespace HalcyonAcademy
         public bool isAcademic;
         public bool isGreenwork;
 
+        [Header("Schedule")]
+        public TimeOfDay[] availableSlots;  // which time slots this activity appears in
+        public bool isFreeAction;           // true for Vapeur — doesn't cost a slot
+        public Sprite icon;                 // optional icon for the button UI
+
         [Header("Narrative")]
         [TextArea(2, 4)] public string narrativeDefault;
         [TextArea(2, 4)] public string narrativeHighPressure;

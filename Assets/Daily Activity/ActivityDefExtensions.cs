@@ -3,19 +3,20 @@ using UnityEngine;
 namespace HalcyonAcademy
 {
     /// <summary>
-    /// Extension methods and helpers for ActivityDef ScriptableObjects.
+    /// Extension methods for ActivityDef ScriptableObjects.
     /// 
-    /// These assume your existing ActivityDef has at minimum:
-    ///   - string activityId
-    ///   - string displayName
-    ///   - TimeOfDay[] availableSlots
-    ///   - float pressureMin, pressureMax (the delta range)
-    ///   - bool costsFreeSlot (true for Vapeur)
-    ///   - Sprite icon (optional)
-    ///   - string narrativeSnippet (short flavor text)
-    ///
-    /// If your ActivityDef already has a RollPressureDelta method, remove
-    /// the extension method below and use yours instead.
+    /// These match the fields in your existing ActivityDef:
+    ///   - string activityName
+    ///   - float minPressureDelta, maxPressureDelta
+    ///   - bool isRootwork, isAcademic, isGreenwork
+    ///   - string locationPartner
+    ///   - string narrativeDefault, narrativeHighPressure, narrativeLowPressure
+    ///   - string perceptiveInsight
+    /// 
+    /// Fields added by this file (add to your ActivityDef class):
+    ///   - TimeOfDay[] availableSlots   (which time slots this activity appears in)
+    ///   - bool isFreeAction            (true for Vapeur — doesn't cost a slot)
+    ///   - Sprite icon                  (optional icon for the button UI)
     /// </summary>
     public static class ActivityDefExtensions
     {
@@ -25,15 +26,14 @@ namespace HalcyonAcademy
         /// </summary>
         public static float RollPressureDelta(this ActivityDef activity)
         {
-            float baseDelta = Random.Range(activity.pressureMin, activity.pressureMax);
-            float currentPressure = PressureSystem.Instance.CurrentPressure;
+            float baseDelta = Random.Range(activity.minPressureDelta, activity.maxPressureDelta);
+            float currentPressure = PressureSystem.Instance.Pressure;
 
             // High-pressure bonuses: Rootwork and relationship activities
             // gain effectiveness when pressure is high (above 60)
             if (currentPressure > 60f && activity.BenefitsFromHighPressure())
             {
                 float bonus = Mathf.Lerp(1f, 1.4f, (currentPressure - 60f) / 40f);
-                // For negative deltas (pressure-reducing), multiply the magnitude
                 if (baseDelta < 0) baseDelta *= bonus;
             }
 
@@ -41,27 +41,25 @@ namespace HalcyonAcademy
         }
 
         /// <summary>
-        /// Activities tagged as Rootwork or Relationship benefit from high pressure.
-        /// Checks the activity's category tag. Adjust the string checks to match
-        /// your ActivityDef's category system.
+        /// Activities tagged as Rootwork or with a relationship partner benefit
+        /// from high pressure ("bad days are more valuable").
+        /// Uses the boolean flags and locationPartner field on your ActivityDef.
         /// </summary>
         public static bool BenefitsFromHighPressure(this ActivityDef activity)
         {
-            // Adjust these checks to match your ActivityDef's tag/category system
-            string id = activity.activityId.ToLowerInvariant();
-            return id.Contains("rootwork") ||
-                   id.Contains("lola") ||
-                   id.Contains("relationship") ||
-                   id.Contains("bayou");
+            return activity.isRootwork ||
+                   !string.IsNullOrEmpty(activity.locationPartner);
         }
 
         /// <summary>
         /// Whether this activity is available in the given time slot.
+        /// Requires adding a TimeOfDay[] availableSlots field to ActivityDef.
+        /// If the field doesn't exist yet or is empty, the activity is available anytime.
         /// </summary>
         public static bool IsAvailableAt(this ActivityDef activity, TimeOfDay time)
         {
             if (activity.availableSlots == null || activity.availableSlots.Length == 0)
-                return true; // Available anytime if no restrictions
+                return true;
 
             foreach (var slot in activity.availableSlots)
             {
@@ -75,21 +73,31 @@ namespace HalcyonAcademy
         /// </summary>
         public static string GetPressureForecastText(this ActivityDef activity)
         {
-            string minSign = activity.pressureMin >= 0 ? "+" : "";
-            string maxSign = activity.pressureMax >= 0 ? "+" : "";
-            return $"{minSign}{activity.pressureMin:F0} to {maxSign}{activity.pressureMax:F0}";
+            string minSign = activity.minPressureDelta >= 0 ? "+" : "";
+            string maxSign = activity.maxPressureDelta >= 0 ? "+" : "";
+            return $"{minSign}{activity.minPressureDelta:F0} to {maxSign}{activity.maxPressureDelta:F0}";
         }
 
         /// <summary>
-        /// Returns a color hint for the activity based on whether it raises or lowers pressure.
-        /// Use this for UI tinting.
+        /// Returns a color hint for the UI based on whether this activity
+        /// raises or lowers pressure on average.
         /// </summary>
         public static Color GetPressureColor(this ActivityDef activity)
         {
-            float avg = (activity.pressureMin + activity.pressureMax) / 2f;
-            if (avg > 2f) return new Color(0.85f, 0.35f, 0.35f, 1f);  // Red-ish — raises pressure
-            if (avg < -2f) return new Color(0.4f, 0.75f, 0.55f, 1f);  // Teal — lowers pressure
-            return new Color(0.82f, 0.73f, 0.55f, 1f);                // Gold — neutral/variable
+            float avg = (activity.minPressureDelta + activity.maxPressureDelta) / 2f;
+            if (avg > 2f) return new Color(0.85f, 0.35f, 0.35f, 1f);   // Red — raises pressure
+            if (avg < -2f) return new Color(0.4f, 0.75f, 0.55f, 1f);   // Teal — lowers pressure
+            return new Color(0.82f, 0.73f, 0.55f, 1f);                  // Gold — neutral/variable
+        }
+
+        /// <summary>
+        /// Get the appropriate narrative text based on current pressure.
+        /// Convenience wrapper around the existing GetNarrativeText method.
+        /// </summary>
+        public static string GetNarrative(this ActivityDef activity)
+        {
+            var ps = PressureSystem.Instance;
+            return activity.GetNarrativeText(ps.Pressure, ps.CurrentZone);
         }
     }
 }

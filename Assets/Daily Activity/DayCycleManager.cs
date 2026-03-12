@@ -10,8 +10,8 @@ namespace HalcyonAcademy
     /// 
     /// Wiring:
     ///   - Reads/writes PressureSystem.Instance for pressure values
-    ///   - Reads ActivitySystem for panic-attack threshold
     ///   - Fires events that DailyScheduleUI listens to
+    ///   - Uses TimeOfDay enum from ActivitySystem.cs (not duplicated here)
     /// </summary>
     public class DayCycleManager : MonoBehaviour
     {
@@ -53,22 +53,11 @@ namespace HalcyonAcademy
         };
 
         // ── Events ─────────────────────────────────────────────────────
-        /// <summary>Fired at the start of each new day, after morning pressure is calculated.</summary>
-        public event Action<int> OnDayStarted;                    // dayNumber
-
-        /// <summary>Fired when a new time slot becomes active.</summary>
-        public event Action<int, TimeOfDay> OnSlotBegan;          // slotIndex, timeOfDay
-
-        /// <summary>Fired after the player confirms an activity and its effects resolve.</summary>
-        public event Action<int, TimeOfDay> OnSlotCompleted;      // slotIndex, timeOfDay
-
-        /// <summary>Fired when the day ends (either naturally or via panic attack).</summary>
-        public event Action<int, bool> OnDayEnded;                // dayNumber, wasPanicAttack
-
-        /// <summary>Fired when a panic attack triggers, before the day-end event.</summary>
+        public event Action<int> OnDayStarted;
+        public event Action<int, TimeOfDay> OnSlotBegan;
+        public event Action<int, TimeOfDay> OnSlotCompleted;
+        public event Action<int, bool> OnDayEnded;
         public event Action OnPanicAttack;
-
-        /// <summary>Fired with the morning pressure calculation breakdown for UI display.</summary>
         public event Action<MorningPressureReport> OnMorningPressureCalculated;
 
         // ── Lifecycle ──────────────────────────────────────────────────
@@ -78,10 +67,9 @@ namespace HalcyonAcademy
             Instance = this;
         }
 
-        /// <summary>Call this to kick off day 1 (or call StartNewDay directly).</summary>
         public void BeginGame()
         {
-            CurrentDay = 0; // StartNewDay increments
+            CurrentDay = 0;
             StartNewDay();
         }
 
@@ -93,39 +81,31 @@ namespace HalcyonAcademy
             CurrentSlotIndex = 0;
             DayInProgress = true;
 
-            // Morning pressure calculation
-            float previousPressure = PressureSystem.Instance.CurrentPressure;
+            float previousPressure = PressureSystem.Instance.Pressure;
             float recovery = overnightRecoveryBase + UnityEngine.Random.Range(-overnightRecoveryVariance, overnightRecoveryVariance);
             TodayWeatherModifier = UnityEngine.Random.Range(weatherModifierMin, weatherModifierMax);
             float morningDelta = -recovery + TodayWeatherModifier;
 
-            PressureSystem.Instance.ApplyDelta(morningDelta, "morning_calculation");
+            PressureSystem.Instance.AdjustPressure(morningDelta, "morning_calculation");
 
             var report = new MorningPressureReport
             {
                 PreviousPressure = previousPressure,
                 OvernightRecovery = recovery,
                 WeatherModifier = TodayWeatherModifier,
-                FinalPressure = PressureSystem.Instance.CurrentPressure
+                FinalPressure = PressureSystem.Instance.Pressure
             };
             OnMorningPressureCalculated?.Invoke(report);
             OnDayStarted?.Invoke(CurrentDay);
-
-            // Begin first slot
             OnSlotBegan?.Invoke(CurrentSlotIndex, CurrentTimeOfDay);
         }
 
-        /// <summary>
-        /// Called by the UI after an activity resolves. Advances to the next slot
-        /// or ends the day. Checks for panic attack after pressure changes.
-        /// </summary>
         public void CompleteCurrentSlot()
         {
             TimeOfDay completedTime = CurrentTimeOfDay;
             OnSlotCompleted?.Invoke(CurrentSlotIndex, completedTime);
 
-            // Check panic attack
-            if (PressureSystem.Instance.CurrentPressure >= panicThreshold)
+            if (PressureSystem.Instance.Pressure >= panicThreshold)
             {
                 StartCoroutine(HandlePanicAttack());
                 return;
@@ -134,30 +114,18 @@ namespace HalcyonAcademy
             CurrentSlotIndex++;
 
             if (CurrentSlotIndex >= slotsPerDay)
-            {
                 StartCoroutine(HandleDayEnd(false));
-            }
             else
-            {
                 StartCoroutine(TransitionToNextSlot());
-            }
         }
 
-        /// <summary>
-        /// Allows external systems (e.g., Vapeur) to trigger a slot action
-        /// without consuming a slot.
-        /// </summary>
         public void ExecuteFreeAction(ActivityDef activity)
         {
-            // Apply the activity's pressure effect without advancing the slot
-            float delta = activity.RollPressureDelta();
-            PressureSystem.Instance.ApplyDelta(delta, activity.activityId);
+            float delta = UnityEngine.Random.Range(activity.minPressureDelta, activity.maxPressureDelta);
+            PressureSystem.Instance.AdjustPressure(delta, activity.activityName);
 
-            // Still check for panic
-            if (PressureSystem.Instance.CurrentPressure >= panicThreshold)
-            {
+            if (PressureSystem.Instance.Pressure >= panicThreshold)
                 StartCoroutine(HandlePanicAttack());
-            }
         }
 
         // ── Coroutines ────────────────────────────────────────────────
@@ -186,9 +154,6 @@ namespace HalcyonAcademy
 
     // ── Supporting Types ───────────────────────────────────────────────
 
-    /// <summary>
-    /// Breakdown of the morning pressure calculation for UI display.
-    /// </summary>
     [Serializable]
     public struct MorningPressureReport
     {
@@ -209,15 +174,5 @@ namespace HalcyonAcademy
         }
     }
 
-    /// <summary>
-    /// Time-of-day enum. If you already have this in ActivitySystem.cs,
-    /// delete this one and use yours.
-    /// </summary>
-    public enum TimeOfDay
-    {
-        Morning,
-        Afternoon,
-        Evening,
-        Night
-    }
+    // NOTE: TimeOfDay enum lives in ActivitySystem.cs — not duplicated here.
 }

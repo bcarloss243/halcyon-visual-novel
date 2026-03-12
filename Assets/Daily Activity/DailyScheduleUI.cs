@@ -114,11 +114,8 @@ namespace HalcyonAcademy
             _vapeurOnCooldown = false;
             UpdateVapeurButton();
 
-            // Reset slot indicators
             for (int i = 0; i < slotIndicators.Length; i++)
-            {
                 slotIndicators[i].SetState(SlotState.Upcoming);
-            }
 
             if (panicOverlay != null) panicOverlay.SetActive(false);
             narrativeText.text = "";
@@ -148,17 +145,14 @@ namespace HalcyonAcademy
             if (morningReportPanel != null)
                 morningReportPanel.SetActive(false);
 
-            // Now show the first slot's activities
             HandleSlotBegan(DayCycleManager.Instance.CurrentSlotIndex, DayCycleManager.Instance.CurrentTimeOfDay);
         }
 
         private void HandleSlotBegan(int slotIndex, TimeOfDay timeOfDay)
         {
-            // Update header
             timeOfDayLabel.text = GetTimeOfDayDisplayName(timeOfDay);
             weatherLabel.text = GetWeatherHint();
 
-            // Update slot indicators
             for (int i = 0; i < slotIndicators.Length; i++)
             {
                 if (i < slotIndex)
@@ -169,7 +163,6 @@ namespace HalcyonAcademy
                     slotIndicators[i].SetState(SlotState.Upcoming);
             }
 
-            // Populate activity choices
             PopulateActivityButtons(timeOfDay);
             _waitingForChoice = true;
 
@@ -187,7 +180,6 @@ namespace HalcyonAcademy
             ClearActivityButtons();
             _waitingForChoice = false;
 
-            // Mark remaining slots as lost
             for (int i = 0; i < slotIndicators.Length; i++)
             {
                 if (slotIndicators[i].CurrentState == SlotState.Upcoming ||
@@ -198,9 +190,7 @@ namespace HalcyonAcademy
             }
 
             if (!wasPanic)
-            {
                 ShowNarrative("The Cloche dims as night settles. Time to rest.", "");
-            }
         }
 
         private void HandlePanicAttack()
@@ -226,9 +216,9 @@ namespace HalcyonAcademy
             List<ActivityDef> available = new();
             foreach (var def in activityDatabase)
             {
-                if (def.costsFreeSlot) continue; // Vapeur handled separately
+                if (def.isFreeAction) continue;  // Vapeur handled separately
                 if (!def.IsAvailableAt(timeOfDay)) continue;
-                // TODO: Add ward-lock checks here (e.g., Greenwork locked by Alaric)
+                if (def.isGreenwork) continue;    // TODO: unlock when Alaric's block lifts
                 available.Add(def);
             }
 
@@ -257,22 +247,21 @@ namespace HalcyonAcademy
             if (!_waitingForChoice) return;
             _waitingForChoice = false;
 
-            // Disable all buttons during resolution
             foreach (var btn in _spawnedButtons) btn.SetInteractable(false);
 
-            // Roll and apply pressure
+            // Roll pressure delta and apply via PressureSystem
             float delta = chosen.RollPressureDelta();
-            PressureSystem.Instance.ApplyDelta(delta, chosen.activityId);
+            PressureSystem.Instance.AdjustPressure(delta, chosen.activityName);
 
             // Show narrative feedback
+            string narrativeMsg = chosen.GetNarrative();
             string deltaSign = delta >= 0 ? "+" : "";
             string deltaColor = delta >= 0 ? "#D4635A" : "#6BB88C";
             ShowNarrative(
-                chosen.narrativeSnippet,
+                narrativeMsg,
                 $"<color={deltaColor}>{deltaSign}{delta:F0} pressure</color>"
             );
 
-            // After narrative display, advance the day cycle
             StartCoroutine(ResolveActivityThenAdvance());
         }
 
@@ -283,10 +272,9 @@ namespace HalcyonAcademy
             _vapeurOnCooldown = true;
             UpdateVapeurButton();
 
-            // Vapeur is a free action — doesn't consume a slot
             DayCycleManager.Instance.ExecuteFreeAction(vapeurActivity);
 
-            float delta = vapeurActivity.pressureMin; // Vapeur has a fixed effect typically
+            float delta = vapeurActivity.minPressureDelta;
             string sign = delta >= 0 ? "+" : "";
             ShowNarrative(
                 "The Vapeur settles over her like a cool cloth. The edges soften.",
@@ -367,10 +355,6 @@ namespace HalcyonAcademy
 
     public enum SlotState { Upcoming, Active, Completed, Lost }
 
-    /// <summary>
-    /// A single slot pip in the day tracker. Attach to a small UI element
-    /// with an Image component. Can also have a child TextMeshProUGUI for labels.
-    /// </summary>
     [Serializable]
     public class SlotIndicator
     {
@@ -385,8 +369,6 @@ namespace HalcyonAcademy
         [SerializeField] private Color lostColor = new(0.65f, 0.3f, 0.3f, 0.5f);
 
         public SlotState CurrentState { get; private set; }
-
-        private static readonly string[] SlotLabels = { "Morn", "Aft", "Eve", "Night" };
 
         public void SetState(SlotState state)
         {
