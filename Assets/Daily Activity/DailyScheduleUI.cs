@@ -140,7 +140,7 @@ namespace HalcyonAcademy
                 $"<size=110%>Starting pressure: <color=#D4A843>{report.FinalPressure:F0}</color></size>";
         }
 
-        private void DismissMorningReport()
+        public void DismissMorningReport()
         {
             if (morningReportPanel != null)
                 morningReportPanel.SetActive(false);
