@@ -13,6 +13,7 @@ namespace HalcyonAcademy
     /// Controls:
     ///   ↑/↓         Adjust pressure ±5
     ///   Shift+↑/↓   Adjust pressure ±15
+    ///   B            Begin Game (start day cycle)
     ///   V            Take Vapeur
     ///   R            Resolve Vapeur (simulate end of day)
     ///   S            Trigger Storm Harvest
@@ -52,6 +53,13 @@ namespace HalcyonAcademy
             if (ps == null) return;
 
             bool shift = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+
+            // Begin Game (start day cycle)
+            if (Input.GetKeyDown(KeyCode.B))
+            {
+                DayCycleManager.Instance.BeginGame();
+                ShowFeedback("Game started — Day 1");
+            }
 
             // Pressure adjustments
             if (Input.GetKeyDown(KeyCode.UpArrow))
@@ -185,9 +193,9 @@ Rootwork ×{ps.RootworkMultiplier:F1}  Academic ×{ps.AcademicMultiplier:F1}
 Perceptive Insights: {(ps.PerceptiveInsightsAvailable ? "AVAILABLE" : "locked")}
 Lola: {(_lolaPresent ? "present" : "—")}  Alaric: {(_alaricPresent ? "present" : "—")}
 
-↑↓ pressure  |  V vapeur  |  S storm  |  N new day
-L lola  |  A alaric  |  C conflict  |  P rootwork
-G greenhouse  |  F forge  |  Tab hide</color></size>";
+B begin game  |  ↑↓ pressure  |  V vapeur  |  S storm
+N new day  |  L lola  |  A alaric  |  C conflict
+P rootwork  |  G greenhouse  |  F forge  |  Tab hide</color></size>";
         }
     }
 }
