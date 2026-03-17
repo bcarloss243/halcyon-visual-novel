@@ -20,18 +20,18 @@ This is a solo-dev capstone project. The developer (Bergen) is learning Unity wh
 
 **PressureSystem** — The central game state manager.
 - `PressureSystem.Instance.Pressure` — current pressure (float, 0–100)
-- `PressureSystem.Instance.AdjustPressure(float delta)` — apply pressure change
+- `PressureSystem.Instance.AdjustPressure(float delta, string source = "")` — apply pressure change
 - `PressureSystem.GetZone(float pressure)` → returns `PressureZone` enum
 - Zone thresholds: 0–25 (Clarity), 25–50 (Manageable), 50–75 (Elevated), 75–100 (Crisis)
 - Panic attack triggers at 95+ pressure
-- Key properties: `IsHighPressureDay` (>65), `IsLowPressureDay` (<30), `RootworkMultiplier`, `AcademicMultiplier`, `RelationshipMultiplier`, `PerceptiveInsightsAvailable`
-- Microclimate system: Lola reduces pressure, Alaric increases it
+- Key properties: `IsHighPressureDay` (>75), `IsLowPressureDay` (<25), `RootworkMultiplier`, `AcademicMultiplier`, `RelationshipMultiplier`, `PerceptiveInsightsAvailable` (>75)
+- Microclimate system: both Lola and Alaric soften pressure increases and amplify decreases. Lola starts at 0.0 and grows via sheltering moments. Alaric starts at 0.2 but can erode to -0.5 after conflicts (negative = worsens pressure).
 
 **DayCycleManager** — Manages day/night cycle and time slot progression.
 - Time slots: Morning, Afternoon, Evening, Night (uses `TimeOfDay` enum)
 - `DayCycleManager.Instance.BeginGame()` — starts the loop
-- Events: `OnDayBegan`, `OnSlotBegan`, `OnDayEnded`, `OnPanicAttack`
-- Morning pressure calculation: previous pressure + overnight recovery + weather modifier
+- Events: `OnDayStarted`, `OnSlotBegan`, `OnSlotCompleted`, `OnDayEnded`, `OnPanicAttack`, `OnMorningPressureCalculated`
+- Morning pressure calculation: previous pressure − overnight recovery + weather modifier
 - `MorningPressureReport` struct for UI display
 
 ### Data Model
@@ -40,7 +40,7 @@ This is a solo-dev capstone project. The developer (Bergen) is learning Unity wh
 - `activityName` (string) — NOT `activityId`
 - `minPressureDelta` / `maxPressureDelta` (float) — NOT `pressureMin`/`pressureMax`
 - `narrativeDefault`, `narrativeHighPressure`, `narrativeLowPressure` (string, TextArea)
-- `perceptiveInsight` (string, TextArea) — only shown at pressure > 65
+- `perceptiveInsight` (string, TextArea) — only shown when `PerceptiveInsightsAvailable` (pressure > 75)
 - `GetNarrativeText(float pressure, PressureZone zone)` — returns context-appropriate text
 - `locationPartner` (string) — "Lola", "Alaric", etc. for microclimate calculation
 - `isRootwork`, `isAcademic`, `isGreenwork` (bool)
@@ -62,13 +62,23 @@ public enum PressureZone { Clarity, Manageable, Elevated, Crisis }
 public enum TimeOfDay { Morning, Afternoon, Evening, Night }
 ```
 
+**ActivitySystem** — Older/parallel activity execution singleton. Has its own `DoActivity(ActivityDef)` flow that rolls pressure deltas, applies "bad days" multipliers, manages sheltering moments, and advances time slots. Defines the `TimeOfDay` enum and `ActivityDef` ScriptableObject class.
+
 ### UI Scripts
 
 **PressureGaugeUI** — Renders the Art Deco gauge. Needle pivot, zone arcs, glow overlays (white tint), forecast text. Arc sweeps clockwise: Clarity at bottom-left (7 o'clock), Crisis at bottom-right (5 o'clock).
 
-**DailyScheduleUI** — Shows activity cards for the current time slot. References `activityDatabase` (ActivityDef[]) and `vapeurActivity` (separate ActivityDef).
+**DailyScheduleUI** — Shows activity cards for the current time slot. References `activityDatabase` (List\<ActivityDef\>) and `vapeurActivity` (separate ActivityDef).
 
 **ActivityButtonUI** — Individual activity card with hover effects, pressure forecast, high-pressure bonus indicator.
+
+**GaugeArc** — Procedural UI mesh (`Graphic` subclass) that draws a single arc segment on the gauge face. Four instances make up the zone bands.
+
+### Audio & Effects
+
+**HumAudioManager** — Three-layer ambient audio: drone (always on, scales with pressure), static (fades in above 40), signal/music (audible below 25, ceiling rises with Rootwork progression).
+
+**PressureScreenEffects** — Drives URP post-processing (vignette, chromatic aberration, color temperature, camera sway) based on pressure level.
 
 ### Seven Core Activities
 1. Ironwork Class
@@ -81,7 +91,7 @@ public enum TimeOfDay { Morning, Afternoon, Evening, Night }
 
 ## Design Principles
 
-- **"Bad days are more valuable"** — High pressure (>65) boosts Rootwork and relationship gains via multipliers. The game rewards engaging with difficulty, not avoiding it.
+- **"Bad days are more valuable"** — High pressure (>75) boosts Rootwork (1.5×) and relationship gains (1.3×) via `PressureSystem` multipliers. `ActivityDefExtensions` applies a separate bonus curve starting at >60. The game rewards engaging with difficulty, not avoiding it.
 - **Vapeur is a trap** — It temporarily lowers pressure but causes rebound spikes. The player is meant to gradually discover this.
 - **The gauge IS the revelation** — What everyone thinks is an anxiety meter is actually measuring atmospheric pressure. The mechanic is the plot twist.
 
@@ -94,17 +104,18 @@ public enum TimeOfDay { Morning, Afternoon, Evening, Night }
 
 ```
 Assets/
-├── Scripts/
-│   ├── Systems/        (PressureSystem, DayCycleManager, ActivityDefExtensions)
-│   ├── UI/             (PressureGaugeUI, DailyScheduleUI, ActivityButtonUI)
-│   └── Debug/          (GaugeDebugController)
+├── Pressure Gauge/      (PressureSystem, PressureGaugeUI (1), GaugeDebugController,
+│                         ZoneConfig, GaugeArc, PressureScreenEffects)
+├── Daily Activity/      (DayCycleManager, ActivitySystem, ActivityDefExtensions,
+│                         DailyScheduleUI, ActivityButtonUI)
+├── HumAudioManager.cs   (root-level audio manager)
 ├── Data/
-│   ├── Activities/     (7 ActivityDef ScriptableObjects)
-│   └── Config/         (ZoneConfig asset)
+│   ├── Activities/      (7 ActivityDef ScriptableObjects)
+│   └── Config/          (ZoneConfig asset)
 ├── Prefabs/
-│   └── ActivityButton  (prefab with ActivityButtonUI)
+│   └── ActivityButton   (prefab with ActivityButtonUI)
 ├── Art/
-│   └── Gauge/          (gauge face, needle, center cap, zone segment sprites)
+│   └── Gauge/           (gauge face, needle, center cap, zone segment sprites)
 └── Scenes/
 ```
 
